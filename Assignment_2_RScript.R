@@ -35,8 +35,8 @@ set.seed(12345)
 
 
 #-----Read Data-----#
-metaData <- readr::read_csv("data/metadata_file.csv")
-expression_df <- readr::read_csv("data/dataset_file.csv") %>%
+metaData <- readr::read_csv("metadata_file.csv")
+expression_df <- readr::read_csv("dataset_file.csv") %>%
   
   # Tuck away the Gene ID column as row names
   tibble::column_to_rownames("Gene")
@@ -119,6 +119,18 @@ metaData <- metaData %>%
   )
 
 levels(metaData$cancer_status)
+expression_df <- readr::read_csv("dataset_file.csv") %>%
+  
+  # Tuck away the Gene ID column as row names
+  tibble::column_to_rownames("Gene")
+
+# Make the data in the order of the metadata
+expression_df <- expression_df %>%
+  dplyr::select(metaData$Run)
+
+# Check if this is in the same order
+all.equal(colnames(expression_df), metaData$Run)
+
 
 
 filtered_expression_df <- expression_df %>%
@@ -183,3 +195,58 @@ head(deseq_df)
 pcaPlot<-plotCounts(ddset, gene = "ENSG00000000003", intgroup = "cancer_status")
 
 pcaPlot()
+
+# We'll assign this as `volcano_plot`
+volcano_plot <- EnhancedVolcano::EnhancedVolcano(
+  deseq_df,
+  lab = deseq_df$Gene,
+  x = "log2FoldChange",
+  y = "padj",
+  pCutoff = 0.01 # Loosen the cutoff since we supplied corrected p-values
+)
+volcano_plot
+
+ggsave(
+  plot = volcano_plot,
+  file.path(plots_dir, "volcano_plot.png")
+) # Replace with a plot name relevant to your data
+
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("topGO")
+# Create the data folder if it doesn't exist
+if (!dir.exists("data")) {
+  dir.create("data")
+}
+
+# Define the file path to the plots directory
+plots_dir <- "plots"
+
+# Create the plots folder if it doesn't exist
+if (!dir.exists(plots_dir)) {
+  dir.create(plots_dir)
+}
+
+# Define the file path to the results directory
+results_dir <- "results"
+
+# Create the results folder if it doesn't exist
+if (!dir.exists(results_dir)) {
+  dir.create(results_dir)
+}
+ggsave(
+  plot = volcano_plot,
+  file.path(plots_dir, "SRP123625_volcano_plot.png")
+) # Replace with a plot name relevant to your data
+readr::write_tsv(
+  deseq_df,
+  file.path(
+    results_dir,
+    "SRP123625_diff_expr_results.tsv" # Replace with a relevant output file name
+  )
+)
+
+library(topGO)
+library(DESeq2)
+affyLib <- paste(annotation(deseq_df), "db", sep = ".")
